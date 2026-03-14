@@ -1,12 +1,14 @@
 import { BrowserRouter, Routes, Route, NavLink } from "react-router-dom";
-import { Zap, Activity, BarChart3, Settings } from "lucide-react";
+import { Zap, Activity, BarChart3, Settings, Wallet } from "lucide-react";
 import CheckoutPage from "./pages/CheckoutPage";
 import TracePage from "./pages/TracePage";
 import DashboardPage from "./pages/DashboardPage";
 import DemoControlPage from "./pages/DemoControlPage";
+import InstrumentsPage from "./pages/InstrumentsPage";
 
 const tabs = [
   { to: "/", icon: Zap, label: "Checkout" },
+  { to: "/instruments", icon: Wallet, label: "Instruments" },
   { to: "/trace", icon: Activity, label: "Reasoning Trace" },
   { to: "/dashboard", icon: BarChart3, label: "Dashboard" },
   { to: "/demo", icon: Settings, label: "Demo Control" },
@@ -52,6 +54,7 @@ export default function App() {
         <main className="flex-1 p-6 max-w-5xl mx-auto w-full">
           <Routes>
             <Route path="/" element={<CheckoutPage />} />
+            <Route path="/instruments" element={<InstrumentsPage />} />
             <Route path="/trace" element={<TracePage />} />
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/demo" element={<DemoControlPage />} />

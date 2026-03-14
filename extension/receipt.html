@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>PaySense — Payment Receipt</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #0f172a;
+      color: #fff;
+      font-family: 'Inter', -apple-system, system-ui, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 40px 20px;
+    }
+
+    .receipt {
+      width: 100%;
+      max-width: 520px;
+    }
+
+    /* ── Header ── */
+    .receipt-header {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+    .receipt-logo {
+      font-size: 28px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+    }
+    .receipt-logo span { color: #10b981; }
+    .receipt-subtitle {
+      font-size: 12px;
+      color: rgba(255,255,255,0.35);
+      margin-top: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+
+    /* ── Status badge ── */
+    .status-badge {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 16px;
+      border-radius: 16px;
+      margin-bottom: 24px;
+    }
+    .status-badge.success {
+      background: rgba(16,185,129,0.1);
+      border: 1px solid rgba(16,185,129,0.25);
+    }
+    .status-badge.recovered {
+      background: rgba(245,158,11,0.1);
+      border: 1px solid rgba(245,158,11,0.25);
+    }
+    .status-badge.failed {
+      background: rgba(239,68,68,0.1);
+      border: 1px solid rgba(239,68,68,0.25);
+    }
+    .status-icon {
+      width: 48px; height: 48px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 24px; font-weight: 700;
+      flex-shrink: 0;
+    }
+    .status-badge.success .status-icon { background: #10b981; }
+    .status-badge.recovered .status-icon { background: #f59e0b; }
+    .status-badge.failed .status-icon { background: #ef4444; }
+    .status-title { font-size: 20px; font-weight: 700; }
+    .status-badge.success .status-title { color: #10b981; }
+    .status-badge.recovered .status-title { color: #f59e0b; }
+    .status-badge.failed .status-title { color: #ef4444; }
+    .status-sub { font-size: 13px; color: rgba(255,255,255,0.5); margin-top: 2px; }
+
+    /* ── Card ── */
+    .card {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 16px;
+      padding: 24px;
+      margin-bottom: 16px;
+    }
+    .card-title {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: rgba(255,255,255,0.35);
+      margin-bottom: 16px;
+      font-weight: 600;
+    }
+
+    /* ── Product ── */
+    .product {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .product-emoji { font-size: 40px; flex-shrink: 0; }
+    .product-name { font-weight: 600; font-size: 15px; line-height: 1.4; }
+    .product-price {
+      font-size: 22px;
+      font-weight: 800;
+      color: #10b981;
+      margin-top: 4px;
+    }
+    .product-mrp {
+      font-size: 14px;
+      color: rgba(255,255,255,0.3);
+      text-decoration: line-through;
+      margin-left: 8px;
+    }
+
+    /* ── Details rows ── */
+    .detail-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      font-size: 14px;
+    }
+    .detail-row:last-child { border-bottom: none; }
+    .detail-label { color: rgba(255,255,255,0.45); }
+    .detail-value { font-weight: 600; text-align: right; }
+    .detail-value.green { color: #10b981; }
+    .detail-value.amber { color: #f59e0b; }
+    .detail-value.mono { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px; color: rgba(255,255,255,0.5); }
+
+    /* ── Savings highlight ── */
+    .savings-row {
+      background: rgba(16,185,129,0.08);
+      border: 1px solid rgba(16,185,129,0.15);
+      border-radius: 12px;
+      padding: 12px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 8px;
+    }
+    .savings-row .label { font-size: 14px; color: #10b981; font-weight: 600; }
+    .savings-row .amount { font-size: 18px; color: #10b981; font-weight: 800; }
+
+    /* ── Recovery timeline ── */
+    .timeline { padding: 0; }
+    .timeline-step {
+      display: flex;
+      gap: 12px;
+      padding: 10px 0;
+      position: relative;
+      padding-left: 28px;
+    }
+    .timeline-step::before {
+      content: '';
+      position: absolute;
+      left: 8px;
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      background: rgba(255,255,255,0.08);
+    }
+    .timeline-step:first-child::before { top: 50%; }
+    .timeline-step:last-child::before { bottom: 50%; }
+    .timeline-dot {
+      position: absolute;
+      left: 0;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 18px; height: 18px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 10px; font-weight: 700;
+      z-index: 1;
+    }
+    .timeline-step.success .timeline-dot { background: #10b981; }
+    .timeline-step.failed .timeline-dot { background: #ef4444; }
+    .timeline-text { font-size: 13px; color: rgba(255,255,255,0.6); padding-top: 1px; }
+    .timeline-step.success .timeline-text { color: #10b981; }
+
+    /* ── Footer ── */
+    .receipt-footer {
+      text-align: center;
+      margin-top: 24px;
+      padding-top: 20px;
+      border-top: 1px solid rgba(255,255,255,0.06);
+    }
+    .footer-text {
+      font-size: 12px;
+      color: rgba(255,255,255,0.25);
+    }
+    .footer-text a { color: #10b981; text-decoration: none; }
+    .footer-powered {
+      font-size: 11px;
+      color: rgba(255,255,255,0.15);
+      margin-top: 8px;
+    }
+    .close-btn {
+      display: inline-block;
+      margin-top: 16px;
+      padding: 10px 32px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 12px;
+      color: rgba(255,255,255,0.6);
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .close-btn:hover { background: rgba(255,255,255,0.1); color: #fff; }
+
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: rgba(255,255,255,0.3);
+    }
+    .empty-state h2 { font-size: 20px; margin-bottom: 8px; color: rgba(255,255,255,0.5); }
+
+    /* ── Animations ── */
+
+    @keyframes rcpt-fadeSlideUp {
+      from { opacity: 0; transform: translateY(24px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes rcpt-drawCheck {
+      to { stroke-dashoffset: 0; }
+    }
+    @keyframes rcpt-countUp {
+      from { opacity: 0; transform: scale(0.8); }
+      to { opacity: 1; transform: scale(1); }
+    }
+    @keyframes rcpt-slideInLeft {
+      from { opacity: 0; transform: translateX(-20px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+    @keyframes rcpt-glowAmber {
+      0%, 100% { box-shadow: 0 0 6px rgba(245, 158, 11, 0.3); }
+      50% { box-shadow: 0 0 18px rgba(245, 158, 11, 0.5); }
+    }
+    @keyframes rcpt-glowGreen {
+      0%, 100% { box-shadow: 0 0 6px rgba(16, 185, 129, 0.3); }
+      50% { box-shadow: 0 0 18px rgba(16, 185, 129, 0.5); }
+    }
+
+    .rcpt-animate {
+      opacity: 0;
+      animation: rcpt-fadeSlideUp 0.5s ease forwards;
+    }
+
+    .status-badge.recovered {
+      animation: rcpt-glowAmber 2s ease-in-out infinite;
+    }
+    .status-badge.success {
+      animation: rcpt-glowGreen 2s ease-in-out infinite;
+    }
+
+    .timeline-step {
+      opacity: 0;
+      animation: rcpt-slideInLeft 0.4s ease forwards;
+    }
+
+    .savings-amount-animated {
+      display: inline-block;
+      animation: rcpt-countUp 0.6s ease forwards;
+    }
+
+    /* SVG animated checkmark */
+    .animated-check circle {
+      fill: #10b981;
+    }
+    .animated-check .check-path {
+      stroke: #fff;
+      stroke-width: 3;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      fill: none;
+      stroke-dasharray: 30;
+      stroke-dashoffset: 30;
+      animation: rcpt-drawCheck 0.6s ease forwards 0.3s;
+    }
+
+    /* Reasoning card */
+    .reasoning-card {
+      background: rgba(139, 92, 246, 0.06);
+      border: 1px solid rgba(139, 92, 246, 0.15);
+      border-radius: 16px;
+      padding: 24px;
+      margin-bottom: 16px;
+    }
+    .reasoning-toggle {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      user-select: none;
+    }
+    .reasoning-toggle .card-title { margin-bottom: 0; color: #8b5cf6; }
+    .reasoning-chevron {
+      transition: transform 0.2s;
+      color: rgba(255,255,255,0.3);
+      font-size: 16px;
+    }
+    .reasoning-chevron.open { transform: rotate(180deg); }
+    .reasoning-content {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.3s ease;
+    }
+    .reasoning-content.open { max-height: 500px; }
+    .reasoning-step {
+      padding: 8px 0;
+      font-size: 13px;
+      color: rgba(255,255,255,0.6);
+      line-height: 1.6;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    .reasoning-step:last-child { border-bottom: none; }
+    .reasoning-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #8b5cf6;
+      font-weight: 600;
+      margin-bottom: 2px;
+    }
+
+    /* Pine Labs branding */
+    .pinelabs-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px;
+      padding: 6px 12px;
+      font-size: 12px;
+      color: rgba(255,255,255,0.5);
+      margin-right: 8px;
+    }
+    .pinelabs-badge strong { color: #fff; font-weight: 600; }
+    .ai-recovery-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      background: rgba(245, 158, 11, 0.1);
+      border: 1px solid rgba(245, 158, 11, 0.2);
+      border-radius: 8px;
+      padding: 6px 12px;
+      font-size: 12px;
+      color: #f59e0b;
+      font-weight: 600;
+    }
+
+    /* ── Print ── */
+    @media print {
+      body { background: #fff; color: #000; padding: 20px; }
+      .card { border: 1px solid #ddd; }
+      .status-badge { border: 2px solid #000; }
+      .close-btn { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="receipt" id="receipt">
+    <div class="empty-state" id="empty">
+      <h2>No receipt data</h2>
+      <p>Complete a payment via the PaySense extension to see your receipt here.</p>
+    </div>
+  </div>
+  <script src="receipt.js"></script>
+</body>
+</html>

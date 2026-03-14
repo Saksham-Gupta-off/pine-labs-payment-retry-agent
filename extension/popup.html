@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      width: 360px;
+      min-height: 400px;
+      background: #0f172a;
+      color: #fff;
+      font-family: 'Inter', -apple-system, system-ui, sans-serif;
+      font-size: 13px;
+    }
+    .header {
+      padding: 14px 16px;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .header .logo { color: #10b981; font-weight: 700; font-size: 16px; }
+    .header .subtitle { color: rgba(255,255,255,0.4); font-size: 11px; }
+
+    .tabs {
+      display: flex;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+    .tab {
+      flex: 1;
+      padding: 10px;
+      text-align: center;
+      cursor: pointer;
+      color: rgba(255,255,255,0.4);
+      font-size: 12px;
+      font-weight: 500;
+      border: none;
+      background: none;
+      transition: all 0.2s;
+    }
+    .tab:hover { color: rgba(255,255,255,0.7); }
+    .tab.active { color: #10b981; border-bottom: 2px solid #10b981; }
+
+    .panel { padding: 16px; display: none; }
+    .panel.active { display: block; }
+
+    .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px; }
+    .stat-card {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 10px;
+      padding: 12px;
+    }
+    .stat-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: rgba(255,255,255,0.4); }
+    .stat-value { font-size: 20px; font-weight: 700; margin-top: 4px; }
+    .stat-value.green { color: #10b981; }
+    .stat-value.amber { color: #f59e0b; }
+    .stat-value.blue { color: #3b82f6; }
+
+    .instrument {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 10px;
+      margin-bottom: 6px;
+    }
+    .instrument-icon {
+      width: 36px; height: 36px; border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: 11px; color: #fff; flex-shrink: 0;
+    }
+    .instrument-name { font-weight: 600; font-size: 13px; }
+    .instrument-detail { font-size: 11px; color: rgba(255,255,255,0.4); }
+
+    .search-box {
+      display: flex; gap: 6px; margin-bottom: 12px;
+    }
+    .search-box input {
+      flex: 1; padding: 8px 12px; border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.05);
+      color: #fff; font-size: 13px; outline: none;
+    }
+    .search-box input::placeholder { color: rgba(255,255,255,0.3); }
+    .search-box input:focus { border-color: #10b981; }
+    .search-box button {
+      padding: 8px 14px; border-radius: 8px; border: none;
+      background: #10b981; color: #fff; font-weight: 600; cursor: pointer;
+      font-size: 12px;
+    }
+
+    .product-card {
+      padding: 10px; background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.08); border-radius: 10px;
+      margin-bottom: 6px; cursor: pointer; transition: background 0.2s;
+    }
+    .product-card:hover { background: rgba(255,255,255,0.1); }
+    .product-name { font-weight: 600; font-size: 13px; }
+    .product-price { color: #10b981; font-weight: 700; }
+    .product-mrp { text-decoration: line-through; color: rgba(255,255,255,0.3); font-size: 12px; margin-left: 6px; }
+
+    .empty { color: rgba(255,255,255,0.3); text-align: center; padding: 30px 0; }
+    .loading { text-align: center; padding: 20px 0; color: #10b981; }
+
+    .recommendation-box {
+      background: rgba(16,185,129,0.08);
+      border: 1px solid rgba(16,185,129,0.2);
+      border-radius: 10px;
+      padding: 12px;
+      margin-top: 10px;
+    }
+    .recommendation-box .reasoning { font-size: 13px; color: rgba(255,255,255,0.7); line-height: 1.5; }
+    .recommendation-box .savings { color: #10b981; font-weight: 600; margin-top: 6px; }
+    .recommendation-box .use-tip { color: #f59e0b; font-size: 12px; margin-top: 8px; }
+
+    .backend-status {
+      padding: 8px 16px;
+      font-size: 11px;
+      text-align: center;
+    }
+    .backend-status.connected { color: #10b981; }
+    .backend-status.disconnected { color: #ef4444; }
+
+    /* Pulsing green dot */
+    .backend-status.connected::before {
+      content: '';
+      display: inline-block;
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: #10b981;
+      margin-right: 4px;
+      animation: popup-pulseDot 1.5s ease-in-out infinite;
+      vertical-align: middle;
+    }
+
+    @keyframes popup-pulseDot {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(16,185,129,0.5); }
+      50% { box-shadow: 0 0 0 4px rgba(16,185,129,0); }
+    }
+
+    @keyframes popup-shimmer {
+      0% { background-position: -200% 0; }
+      100% { background-position: 200% 0; }
+    }
+
+    @keyframes popup-fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .popup-shimmer-card {
+      background: linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.04) 75%);
+      background-size: 200% 100%;
+      animation: popup-shimmer 1.5s infinite;
+      border-radius: 10px;
+      height: 64px;
+    }
+
+    .popup-animate-in {
+      opacity: 0;
+      animation: popup-fadeIn 0.3s ease forwards;
+    }
+
+    .open-dashboard {
+      display: block;
+      width: 100%;
+      padding: 10px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 10px;
+      color: rgba(255,255,255,0.6);
+      text-align: center;
+      cursor: pointer;
+      font-size: 12px;
+      margin-top: 12px;
+      text-decoration: none;
+    }
+    .open-dashboard:hover { background: rgba(255,255,255,0.1); color: #fff; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <span class="logo">⚡ PaySense</span>
+    <span class="subtitle">Autonomous Payment Intelligence</span>
+  </div>
+
+  <div id="backend-status" class="backend-status">Connecting...</div>
+
+  <div class="tabs">
+    <button class="tab active" data-panel="dashboard">Dashboard</button>
+    <button class="tab" data-panel="search">Search</button>
+    <button class="tab" data-panel="instruments">Cards</button>
+  </div>
+
+  <!-- Dashboard Panel -->
+  <div id="panel-dashboard" class="panel active">
+    <div id="stats" class="stat-grid"></div>
+    <div id="recent-txns"></div>
+    <a href="http://localhost:5173/dashboard" target="_blank" class="open-dashboard">
+      Open Full Dashboard →
+    </a>
+  </div>
+
+  <!-- Search Panel -->
+  <div id="panel-search" class="panel">
+    <div class="search-box">
+      <input type="text" id="search-input" placeholder="Search products (e.g., iPhone 15, earbuds)">
+      <button id="search-btn">Search</button>
+    </div>
+    <div id="search-results"></div>
+    <div id="search-recommendation" style="display:none"></div>
+  </div>
+
+  <!-- Instruments Panel -->
+  <div id="panel-instruments" class="panel">
+    <div id="instruments-list"></div>
+    <a href="http://localhost:5173/instruments" target="_blank" class="open-dashboard">
+      Manage Instruments →
+    </a>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
