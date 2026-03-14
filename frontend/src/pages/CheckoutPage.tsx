@@ -359,10 +359,29 @@ export default function CheckoutPage() {
             </div>
 
             <div className="mt-6 space-y-3">
-              <div className="flex justify-between text-sm">
-                <span className="text-white/50">Amount</span>
-                <span className="font-medium">₹{product.price.toLocaleString()}</span>
-              </div>
+              {(() => {
+                const finalId = execResult.recovery
+                  ? execResult.recovery.instrument_id
+                  : execResult.initial_attempt?.instrument_id;
+                const finalInst = INSTRUMENTS.find((i) => i.id === finalId);
+                const savings = finalInst?.offer?.amount ?? 0;
+                const effective = product.price - savings;
+                return (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-white/50">Amount</span>
+                    <span className="font-medium">
+                      {savings > 0 ? (
+                        <>
+                          <span className="line-through text-white/30 mr-2">₹{product.price.toLocaleString()}</span>
+                          <span className="text-emerald-400">₹{effective.toLocaleString()}</span>
+                        </>
+                      ) : (
+                        <>₹{product.price.toLocaleString()}</>
+                      )}
+                    </span>
+                  </div>
+                );
+              })()}
               <div className="flex justify-between text-sm">
                 <span className="text-white/50">Paid with</span>
                 <span className="font-medium">
@@ -379,14 +398,20 @@ export default function CheckoutPage() {
                   </span>
                 </div>
               )}
-              {(recommendation?.savings_amount ?? 0) > 0 && (
-                <div className="flex justify-between text-sm">
-                  <span className="text-white/50">Savings</span>
-                  <span className="font-medium text-emerald-400">
-                    ₹{recommendation.savings_amount}
-                  </span>
-                </div>
-              )}
+              {(() => {
+                // Only show savings if the final instrument has an offer
+                const finalId = execResult.recovery
+                  ? execResult.recovery.instrument_id
+                  : execResult.initial_attempt?.instrument_id;
+                const finalInst = INSTRUMENTS.find((i) => i.id === finalId);
+                const savings = finalInst?.offer?.amount ?? 0;
+                return savings > 0 ? (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-white/50">Savings</span>
+                    <span className="font-medium text-emerald-400">₹{savings}</span>
+                  </div>
+                ) : null;
+              })()}
               <div className="flex justify-between text-sm">
                 <span className="text-white/50">Time</span>
                 <span className="font-medium">{(execResult.total_time_ms / 1000).toFixed(1)}s</span>
