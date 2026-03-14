@@ -11,12 +11,27 @@ DEFAULT_INSTRUMENTS = [
     {
         "id": "upi_1",
         "type": "UPI",
+        "name": "GPay UPI",
+        "handle": "arjun@oksbi",
+        "last4": None,
+        "icon": "gpay",
+        "success_rate": 0.78,
+        "recent_failures": 2,
+        "total_attempts": 45,
+        "total_successes": 35,
+        "offers": {},
+    },
+    {
+        "id": "upi_2",
+        "type": "UPI",
         "name": "PhonePe UPI",
-        "handle": "arjun@okaxis",
+        "handle": "arjun@ybl",
         "last4": None,
         "icon": "phonepe",
-        "success_rate": 0.72,
-        "recent_failures": 3,
+        "success_rate": 0.68,
+        "recent_failures": 4,
+        "total_attempts": 38,
+        "total_successes": 26,
         "offers": {},
     },
     {
@@ -28,6 +43,8 @@ DEFAULT_INSTRUMENTS = [
         "icon": "icici",
         "success_rate": 0.96,
         "recent_failures": 0,
+        "total_attempts": 50,
+        "total_successes": 48,
         "offers": {
             "default": {
                 "type": "cashback",
@@ -45,6 +62,8 @@ DEFAULT_INSTRUMENTS = [
         "icon": "axis",
         "success_rate": 0.93,
         "recent_failures": 0,
+        "total_attempts": 42,
+        "total_successes": 39,
         "offers": {
             "default": {
                 "type": "cashback",
@@ -62,6 +81,8 @@ DEFAULT_INSTRUMENTS = [
         "icon": "hdfc",
         "success_rate": 0.91,
         "recent_failures": 1,
+        "total_attempts": 55,
+        "total_successes": 50,
         "offers": {},
     },
     {
@@ -71,9 +92,30 @@ DEFAULT_INSTRUMENTS = [
         "handle": None,
         "last4": "8834",
         "icon": "sbi",
-        "success_rate": 0.85,
-        "recent_failures": 1,
+        "success_rate": 0.82,
+        "recent_failures": 2,
+        "total_attempts": 33,
+        "total_successes": 27,
         "offers": {},
+    },
+    {
+        "id": "card_5",
+        "type": "Credit Card",
+        "name": "Paytm HDFC Select",
+        "handle": None,
+        "last4": "9102",
+        "icon": "paytm",
+        "success_rate": 0.88,
+        "recent_failures": 1,
+        "total_attempts": 25,
+        "total_successes": 22,
+        "offers": {
+            "default": {
+                "type": "cashback",
+                "percent": 2,
+                "desc": "2% cashback on all online spends",
+            },
+        },
     },
 ]
 
@@ -106,6 +148,7 @@ PRODUCTS = [
             "card_1": {"type": "cashback", "amount": 2745, "desc": "5% cashback with ICICI Amazon Pay Card"},
             "card_2": {"type": "discount", "amount": 3315, "desc": "₹3,315 instant discount with Axis Flipkart Card"},
             "card_3": {"type": "discount", "amount": 6000, "desc": "₹6,000 instant discount with HDFC Bank cards"},
+            "card_5": {"type": "cashback", "amount": 1098, "desc": "2% cashback with Paytm HDFC Select"},
         },
     },
     {
@@ -146,6 +189,7 @@ PRODUCTS = [
         "card_offers": {
             "card_1": {"type": "cashback", "amount": 4995, "desc": "5% cashback with ICICI Amazon Pay Card"},
             "card_2": {"type": "cashback", "amount": 4000, "desc": "₹4,000 instant cashback with Axis Bank cards"},
+            "card_5": {"type": "cashback", "amount": 1998, "desc": "2% cashback with Paytm HDFC Select"},
         },
     },
     {

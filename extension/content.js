@@ -158,12 +158,13 @@
       if (rec.ranked_instruments) {
         instrumentsHTML = rec.ranked_instruments
           .slice(0, 4)
-          .map((r) => {
+          .map((r, idx) => {
             const inst = currentInstruments.find((i) => i.id === r.id);
             const isRec = r.id === rec.recommended_id;
             return `
             <div class="paysense-instrument ${isRec ? "paysense-recommended" : ""}"
-                 data-instrument-id="${r.id}">
+                 data-instrument-id="${r.id}"
+                 style="animation-delay: ${idx * 100}ms">
               <span class="paysense-inst-name">${inst?.name || r.id}${isRec ? " ★" : ""}</span>
               <span class="paysense-inst-detail">${r.rationale}</span>
             </div>`;
@@ -229,9 +230,10 @@
       el.style.opacity = "0.5";
     });
 
-    // Show processing status
+    // Show processing status with shimmer
     statusDiv.style.display = "block";
     statusDiv.innerHTML = `
+      <div class="paysense-shimmer"></div>
       <div class="paysense-status-flow">
         <div class="paysense-status-step active" id="ps-step-process">
           <div class="paysense-step-dot pulsing"></div>
@@ -293,8 +295,9 @@
         label += " — Payment successful!";
       }
 
+      const stepDelay = (attempts.indexOf(attempt)) * 200;
       stepsHTML += `
-        <div class="paysense-status-step ${stepClass}">
+        <div class="paysense-status-step ${stepClass}" style="animation-delay: ${stepDelay}ms">
           <div class="paysense-step-dot">${icon}</div>
           <span>${label}</span>
         </div>`;
@@ -305,7 +308,7 @@
       const finalInst = result.final_instrument || "your instrument";
       statusDiv.innerHTML = `
         <div class="paysense-status-flow">${stepsHTML}</div>
-        <div class="paysense-success-card">
+        <div class="paysense-success-card ps-glowing">
           <div class="paysense-success-icon">✓</div>
           <div class="paysense-success-text">Payment Complete</div>
           <div class="paysense-success-detail">
@@ -319,6 +322,9 @@
           </button>
         </div>`;
       if (payBtn) payBtn.style.display = "none";
+
+      // Fire confetti
+      launchConfetti(statusDiv.querySelector(".paysense-success-card"));
 
       // Store result and open receipt page
       const receiptData = {
@@ -405,6 +411,66 @@
       el.style.pointerEvents = "";
       el.style.opacity = "";
     });
+  }
+
+  // ── Confetti ──
+
+  function launchConfetti(anchor) {
+    if (!anchor) return;
+    const canvas = document.createElement("canvas");
+    canvas.style.cssText =
+      "position:fixed;top:0;left:0;width:100vw;height:100vh;pointer-events:none;z-index:2147483647";
+    document.body.appendChild(canvas);
+    const ctx = canvas.getContext("2d");
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    const colors = ["#10b981", "#f59e0b", "#3b82f6", "#8b5cf6", "#ef4444", "#06b6d4"];
+    const rect = anchor.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+
+    const particles = Array.from({ length: 60 }, () => ({
+      x: cx,
+      y: cy,
+      vx: (Math.random() - 0.5) * 12,
+      vy: (Math.random() - 0.8) * 10 - 4,
+      w: Math.random() * 6 + 3,
+      h: Math.random() * 4 + 2,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      rotation: Math.random() * 360,
+      rv: (Math.random() - 0.5) * 12,
+      alpha: 1,
+    }));
+
+    let frame = 0;
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      let alive = false;
+      for (const p of particles) {
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vy += 0.25;
+        p.rotation += p.rv;
+        p.alpha -= 0.012;
+        if (p.alpha <= 0) continue;
+        alive = true;
+        ctx.save();
+        ctx.globalAlpha = p.alpha;
+        ctx.translate(p.x, p.y);
+        ctx.rotate((p.rotation * Math.PI) / 180);
+        ctx.fillStyle = p.color;
+        ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+        ctx.restore();
+      }
+      frame++;
+      if (alive && frame < 120) {
+        requestAnimationFrame(draw);
+      } else {
+        canvas.remove();
+      }
+    }
+    requestAnimationFrame(draw);
   }
 
   // ── Detection logic ──

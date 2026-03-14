@@ -28,8 +28,9 @@
     // Build timeline
     let timelineHTML = "";
     if (attempts.length > 1 || isFailed) {
-      timelineHTML = `<div class="card"><div class="card-title">Payment Attempts</div><div class="timeline">`;
-      for (const a of attempts) {
+      timelineHTML = `<div class="card rcpt-animate"><div class="card-title">Payment Attempts</div><div class="timeline">`;
+      for (let i = 0; i < attempts.length; i++) {
+        const a = attempts[i];
         const ok = a.status === "SUCCESS" || a.status === "RECOVERED";
         const cls = ok ? "success" : "failed";
         const dot = ok ? "✓" : "✕";
@@ -41,7 +42,7 @@
         if (ok) text += " — Success";
 
         timelineHTML += `
-          <div class="timeline-step ${cls}">
+          <div class="timeline-step ${cls}" style="animation-delay: ${i * 200}ms">
             <div class="timeline-dot">${dot}</div>
             <div class="timeline-text">${text}</div>
           </div>`;
@@ -55,7 +56,7 @@
       savingsHTML = `
         <div class="savings-row">
           <span class="label">You saved</span>
-          <span class="amount">₹${savings.toLocaleString("en-IN")}</span>
+          <span class="amount savings-amount-animated" data-target="${savings}">₹0</span>
         </div>`;
     }
 
@@ -64,14 +65,46 @@
     if (isFailed && r.root_cause) {
       const rc = r.root_cause;
       failHTML = `
-        <div class="card">
+        <div class="card rcpt-animate">
           <div class="card-title">Failure Details</div>
           <p style="font-size:14px;color:rgba(255,255,255,0.6);line-height:1.6">${rc.summary || "All instruments failed."}</p>
           <p style="font-size:12px;color:rgba(255,255,255,0.3);margin-top:8px">${rc.instruments_tried || 0} instruments tried across ${rc.total_attempts || 0} attempts</p>
         </div>`;
     }
 
-    const statusIcons = { success: "✓", recovered: "✓", failed: "!" };
+    // Reasoning section from attempts
+    let reasoningHTML = "";
+    if (attempts.length > 0) {
+      let reasoningSteps = "";
+      for (const a of attempts) {
+        const statusLabel = a.status === "SUCCESS" ? "Success" : a.status === "RECOVERED" ? "Recovered" : "Failed";
+        const errorInfo = a.error_code ? ` → Error: ${a.error_code}` : "";
+        reasoningSteps += `
+          <div class="reasoning-step">
+            <div class="reasoning-label">Attempt ${a.attempt_number} · ${statusLabel}</div>
+            ${a.instrument_name}${errorInfo}${a.error_message ? ` — ${a.error_message}` : ""}
+            ${a.retried_same ? " (retried same instrument)" : ""}
+          </div>`;
+      }
+      reasoningHTML = `
+        <div class="reasoning-card rcpt-animate">
+          <div class="reasoning-toggle" id="reasoning-toggle">
+            <div class="card-title">🤖 Agent Reasoning</div>
+            <span class="reasoning-chevron" id="reasoning-chevron">▼</span>
+          </div>
+          <div class="reasoning-content" id="reasoning-content">
+            ${reasoningSteps}
+          </div>
+        </div>`;
+    }
+
+    // Animated checkmark SVG
+    const checkSVG = `<svg class="animated-check" width="48" height="48" viewBox="0 0 48 48">
+      <circle cx="24" cy="24" r="24"/>
+      <path class="check-path" d="M14 24 L21 31 L34 18"/>
+    </svg>`;
+
+    const statusIcons = { success: checkSVG, recovered: checkSVG, failed: "!" };
     const statusTitles = {
       success: "Payment Successful",
       recovered: "Payment Recovered",
@@ -83,17 +116,21 @@
       failed: "We couldn't complete your payment",
     };
 
+    // Pine Labs branding badges
+    const pinelabsBadge = `<span class="pinelabs-badge">🏦 Powered by <strong>Pine Labs</strong></span>`;
+    const aiRecoveryBadge = isRecovered ? `<span class="ai-recovery-badge">🤖 AI-Powered Recovery</span>` : "";
+
     document.getElementById("empty").style.display = "none";
     document.getElementById("receipt").innerHTML = `
       <!-- Header -->
-      <div class="receipt-header">
+      <div class="receipt-header rcpt-animate" style="animation-delay: 0ms">
         <div class="receipt-logo">⚡ Pay<span>Sense</span></div>
         <div class="receipt-subtitle">Payment Receipt</div>
       </div>
 
       <!-- Status -->
-      <div class="status-badge ${statusClass}">
-        <div class="status-icon">${statusIcons[statusClass]}</div>
+      <div class="status-badge ${statusClass} rcpt-animate" style="animation-delay: 200ms">
+        <div class="status-icon">${statusClass === "failed" ? "!" : statusIcons[statusClass]}</div>
         <div>
           <div class="status-title">${statusTitles[statusClass]}</div>
           <div class="status-sub">${statusSubs[statusClass]}</div>
@@ -101,7 +138,7 @@
       </div>
 
       <!-- Product -->
-      <div class="card">
+      <div class="card rcpt-animate" style="animation-delay: 400ms">
         <div class="card-title">Product</div>
         <div class="product">
           <div class="product-emoji">${product.image_emoji || "🛒"}</div>
@@ -116,10 +153,10 @@
       </div>
 
       <!-- Payment Details -->
-      <div class="card">
+      <div class="card rcpt-animate" style="animation-delay: 600ms">
         <div class="card-title">Payment Details</div>
         <div class="detail-row">
-          <span class="detail-label">Order ID</span>
+          <span class="detail-label">Pine Labs Order ID</span>
           <span class="detail-value mono">${orderId}</span>
         </div>
         <div class="detail-row">
@@ -156,8 +193,15 @@
       <!-- Failure details -->
       ${failHTML}
 
+      <!-- Agent Reasoning -->
+      ${reasoningHTML}
+
       <!-- Footer -->
-      <div class="receipt-footer">
+      <div class="receipt-footer rcpt-animate" style="animation-delay: 1000ms">
+        <div style="margin-bottom: 12px">
+          ${pinelabsBadge}
+          ${aiRecoveryBadge}
+        </div>
         <div class="footer-text">
           Powered by <a href="#">PaySense</a> — Autonomous Payment Intelligence
         </div>
@@ -168,8 +212,42 @@
       </div>
     `;
 
+    // Wire up close button
     document.getElementById("close-receipt").addEventListener("click", () => {
       window.close();
     });
+
+    // Wire up reasoning toggle
+    const toggle = document.getElementById("reasoning-toggle");
+    if (toggle) {
+      toggle.addEventListener("click", () => {
+        const content = document.getElementById("reasoning-content");
+        const chevron = document.getElementById("reasoning-chevron");
+        content.classList.toggle("open");
+        chevron.classList.toggle("open");
+      });
+    }
+
+    // Animate savings count-up
+    const savingsEl = document.querySelector(".savings-amount-animated");
+    if (savingsEl) {
+      const target = parseInt(savingsEl.dataset.target, 10);
+      animateCountUp(savingsEl, target, "₹");
+    }
   });
+
+  function animateCountUp(el, target, prefix = "") {
+    const duration = 800;
+    const start = performance.now();
+    function tick(now) {
+      const elapsed = now - start;
+      const progress = Math.min(elapsed / duration, 1);
+      // Ease out cubic
+      const eased = 1 - Math.pow(1 - progress, 3);
+      const current = Math.round(eased * target);
+      el.textContent = `${prefix}${current.toLocaleString("en-IN")}`;
+      if (progress < 1) requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  }
 })();

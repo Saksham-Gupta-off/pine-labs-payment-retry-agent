@@ -3,6 +3,7 @@ import time
 from contextlib import asynccontextmanager
 from typing import Optional
 
+import aiosqlite
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -304,8 +305,10 @@ async def execute_payment(req: PaymentExecuteRequest):
         "status": "SUCCESS" if result["success"] else "FAILED",
         "failure_code": None if result["success"] else result["data"]["payments"][0]["error_detail"]["code"],
         "retry_of": None,
+        "savings": 0,
     }
     await db.insert_transaction(tx_record)
+    await db.update_instrument_stats(chosen_id, result["success"])
 
     rec_trace_id = str(uuid.uuid4())
     offer_note = f" (saving ₹{chosen_offer['amount']} — {chosen_offer['desc']})" if chosen_offer else ""
@@ -385,6 +388,7 @@ async def execute_payment(req: PaymentExecuteRequest):
         retry_tx_id = str(uuid.uuid4())
         retry_result = await payment_simulator.execute_payment_async(order_id, fallback_instrument, product["price"] * 100)
 
+        retry_savings = fallback_offer["amount"] if fallback_offer and retry_result["success"] else 0
         retry_record = {
             "id": retry_tx_id,
             "order_id": order_id,
@@ -394,8 +398,10 @@ async def execute_payment(req: PaymentExecuteRequest):
             "status": "RECOVERED" if retry_result["success"] else "FAILED",
             "failure_code": None if retry_result["success"] else retry_result["data"]["payments"][0]["error_detail"].get("code"),
             "retry_of": tx_id,
+            "savings": retry_savings,
         }
         await db.insert_transaction(retry_record)
+        await db.update_instrument_stats(fallback_id, retry_result["success"])
 
         # Include Pine Labs response in recovery trace
         retry_pine_note = ""
@@ -433,8 +439,14 @@ async def execute_payment(req: PaymentExecuteRequest):
         flow_result["final_status"] = retry_record["status"]
         flow_result["savings"] = fallback_offer["amount"] if fallback_offer and retry_result["success"] else 0
     else:
+        success_savings = chosen_offer["amount"] if chosen_offer else 0
         flow_result["final_status"] = "SUCCESS"
-        flow_result["savings"] = chosen_offer["amount"] if chosen_offer else 0
+        flow_result["savings"] = success_savings
+        # Update the tx record with savings
+        if success_savings > 0:
+            async with aiosqlite.connect(db.DB_PATH) as conn:
+                await conn.execute("UPDATE transactions SET savings = ? WHERE id = ?", (success_savings, tx_id))
+                await conn.commit()
 
     flow_result["total_time_ms"] = int((time.time() - start_time) * 1000)
     return flow_result
@@ -552,8 +564,10 @@ async def smart_execute_payment(req: SmartPayRequest):
                 "status": status,
                 "failure_code": error_code,
                 "retry_of": first_tx_id if not is_first else None,
+                "savings": 0,
             }
             await db.insert_transaction(tx_record)
+            await db.update_instrument_stats(inst["id"], success)
 
             attempt_info = {
                 "transaction_id": tx_id,
@@ -584,10 +598,16 @@ async def smart_execute_payment(req: SmartPayRequest):
 
             if success:
                 offer = get_best_offer_for_instrument(product, inst["id"])
+                tx_savings = offer["amount"] if offer else 0
                 flow["final_status"] = status
                 flow["final_instrument"] = inst["name"]
-                flow["savings"] = offer["amount"] if offer else 0
+                flow["savings"] = tx_savings
                 flow["total_time_ms"] = int((time.time() - start_time) * 1000)
+                # Store savings in the successful tx record
+                if tx_savings > 0:
+                    async with aiosqlite.connect(db.DB_PATH) as conn:
+                        await conn.execute("UPDATE transactions SET savings = ? WHERE id = ?", (tx_savings, tx_id))
+                        await conn.commit()
                 return flow
 
             # If transient error and first instrument, retry same
@@ -659,10 +679,12 @@ async def get_dashboard():
     # Success rate "after" = with recovery
     after_rate = (successes / total * 100) if total else 0
 
+    money_saved = sum(t.get("savings", 0) or 0 for t in txns)
+
     return {
         "total_transactions": total,
         "successful_recoveries": recoveries,
-        "money_saved": 0,  # computed client-side from flow results now
+        "money_saved": money_saved,
         "success_rate_before": round(before_rate, 1),
         "success_rate_after": round(after_rate, 1),
         "transactions": txns,

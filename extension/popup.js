@@ -20,13 +20,30 @@ document.querySelectorAll(".tab").forEach((tab) => {
   });
 });
 
+// Animated count-up helper
+function animateValue(el, target, prefix = "", suffix = "", duration = 500) {
+  const start = performance.now();
+  const isFloat = String(target).includes(".");
+  function tick(now) {
+    const elapsed = now - start;
+    const progress = Math.min(elapsed / duration, 1);
+    const eased = 1 - Math.pow(1 - progress, 3);
+    const current = isFloat
+      ? (eased * target).toFixed(1)
+      : Math.round(eased * target);
+    el.textContent = `${prefix}${Number(current).toLocaleString("en-IN")}${suffix}`;
+    if (progress < 1) requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+}
+
 // Check backend connectivity
 async function checkBackend() {
   const el = document.getElementById("backend-status");
   try {
     const resp = await fetch(`${API_BASE}/api/demo/status`);
     if (resp.ok) {
-      el.textContent = "● Connected to PaySense backend";
+      el.textContent = " Connected to PaySense backend";
       el.className = "backend-status connected";
     } else {
       throw new Error();
@@ -37,43 +54,60 @@ async function checkBackend() {
   }
 }
 
-// Load dashboard
+// Load dashboard with shimmer + animated counters
 async function loadDashboard() {
+  // Show shimmer loading state
+  document.getElementById("stats").innerHTML = `
+    <div class="popup-shimmer-card"></div>
+    <div class="popup-shimmer-card"></div>
+    <div class="popup-shimmer-card"></div>
+    <div class="popup-shimmer-card"></div>
+  `;
+  document.getElementById("recent-txns").innerHTML = "";
+
   try {
     const resp = await fetch(`${API_BASE}/api/dashboard`);
     const data = await resp.json();
 
     document.getElementById("stats").innerHTML = `
-      <div class="stat-card">
+      <div class="stat-card popup-animate-in" style="animation-delay: 0ms">
         <div class="stat-label">Transactions</div>
-        <div class="stat-value blue">${data.total_transactions}</div>
+        <div class="stat-value blue" id="stat-txns">0</div>
       </div>
-      <div class="stat-card">
+      <div class="stat-card popup-animate-in" style="animation-delay: 100ms">
         <div class="stat-label">Recoveries</div>
-        <div class="stat-value amber">${data.successful_recoveries}</div>
+        <div class="stat-value amber" id="stat-recoveries">0</div>
       </div>
-      <div class="stat-card">
-        <div class="stat-label">Success Before</div>
-        <div class="stat-value" style="color:#ef4444">${data.success_rate_before}%</div>
+      <div class="stat-card popup-animate-in" style="animation-delay: 200ms">
+        <div class="stat-label">Money Saved</div>
+        <div class="stat-value green" id="stat-saved">₹0</div>
       </div>
-      <div class="stat-card">
+      <div class="stat-card popup-animate-in" style="animation-delay: 300ms">
         <div class="stat-label">Success After</div>
-        <div class="stat-value green">${data.success_rate_after}%</div>
+        <div class="stat-value green" id="stat-rate">0%</div>
       </div>
     `;
+
+    // Animate counters after a brief delay for the fade-in to start
+    setTimeout(() => {
+      animateValue(document.getElementById("stat-txns"), data.total_transactions);
+      animateValue(document.getElementById("stat-recoveries"), data.successful_recoveries);
+      animateValue(document.getElementById("stat-saved"), data.money_saved, "₹");
+      animateValue(document.getElementById("stat-rate"), data.success_rate_after, "", "%");
+    }, 100);
 
     const txns = (data.transactions || []).slice(0, 5);
     if (txns.length === 0) {
       document.getElementById("recent-txns").innerHTML = '<div class="empty">No transactions yet</div>';
     } else {
       document.getElementById("recent-txns").innerHTML = txns
-        .map((t) => {
+        .map((t, idx) => {
           const statusColor = t.status === "RECOVERED" ? "#f59e0b" : t.status === "SUCCESS" ? "#10b981" : "#ef4444";
-          return `<div class="instrument">
+          return `<div class="instrument popup-animate-in" style="animation-delay: ${400 + idx * 80}ms">
             <div style="color:${statusColor};font-size:18px">${t.status === "FAILED" ? "✕" : "✓"}</div>
             <div style="flex:1">
               <div class="instrument-name">${t.instrument_name || t.instrument_id}</div>
-              <div class="instrument-detail">₹${(t.amount || 0).toLocaleString()} · ${t.status}</div>
+              <div class="instrument-detail">₹${(t.amount || 0).toLocaleString()} · ${t.status}${t.savings ? ` · Saved ₹${t.savings}` : ""}</div>
             </div>
           </div>`;
         })
@@ -97,15 +131,15 @@ async function loadInstruments() {
     }
 
     document.getElementById("instruments-list").innerHTML = instruments
-      .map((inst) => {
+      .map((inst, idx) => {
         const color = ICON_COLORS[inst.icon] || "#6b7280";
-        return `<div class="instrument">
+        return `<div class="instrument popup-animate-in" style="animation-delay: ${idx * 80}ms">
           <div class="instrument-icon" style="background:${color}">
             ${(inst.icon || "?").slice(0, 3).toUpperCase()}
           </div>
           <div style="flex:1">
             <div class="instrument-name">${inst.name}</div>
-            <div class="instrument-detail">${inst.type}${inst.last4 ? ` •••• ${inst.last4}` : ""}${inst.handle ? ` · ${inst.handle}` : ""}</div>
+            <div class="instrument-detail">${inst.type}${inst.last4 ? ` •••• ${inst.last4}` : ""}${inst.handle ? ` · ${inst.handle}` : ""} · ${(inst.success_rate * 100).toFixed(0)}% success</div>
           </div>
         </div>`;
       })

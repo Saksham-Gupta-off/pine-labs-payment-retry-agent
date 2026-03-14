@@ -384,3 +384,81 @@
 .paysense-retry-btn:hover {
   background: #dc2626;
 }
+
+/* ── Animations ── */
+
+@keyframes ps-slideUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes ps-fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes ps-glow {
+  0%, 100% { box-shadow: 0 0 8px rgba(16, 185, 129, 0.3); }
+  50% { box-shadow: 0 0 20px rgba(16, 185, 129, 0.6); }
+}
+
+@keyframes ps-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes ps-pulseAmber {
+  0%, 100% { box-shadow: 0 0 6px rgba(245, 158, 11, 0.3); }
+  50% { box-shadow: 0 0 16px rgba(245, 158, 11, 0.6); }
+}
+
+@keyframes ps-bounce {
+  0% { opacity: 0; transform: translateY(30px) scale(0.95); }
+  60% { transform: translateY(-4px) scale(1.01); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes ps-pulseBtn {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
+  50% { box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
+}
+
+.paysense-instrument {
+  opacity: 0;
+  animation: ps-slideUp 0.4s ease forwards;
+  transition: border-color 0.2s, background 0.2s, transform 0.15s;
+}
+.paysense-instrument:hover {
+  border-color: rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.1);
+  transform: scale(1.02);
+}
+
+.paysense-success-card {
+  animation: ps-bounce 0.5s ease forwards;
+}
+.paysense-success-card.ps-glowing {
+  animation: ps-bounce 0.5s ease forwards, ps-glow 2s ease-in-out infinite;
+}
+
+.paysense-recovered-badge {
+  animation: ps-pulseAmber 2s ease-in-out infinite;
+}
+
+.paysense-status-step {
+  opacity: 0;
+  animation: ps-fadeIn 0.3s ease forwards;
+}
+
+.paysense-shimmer {
+  background: linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.1) 50%, rgba(255,255,255,0.04) 75%);
+  background-size: 200% 100%;
+  animation: ps-shimmer 1.5s infinite;
+  border-radius: 10px;
+  height: 44px;
+  margin-bottom: 8px;
+}
+
+#paysense-view-receipt {
+  animation: ps-pulseBtn 2s ease-in-out infinite;
+}
