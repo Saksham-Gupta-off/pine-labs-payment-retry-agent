@@ -65,20 +65,50 @@ async def demo_status():
 
 # ── Payment flow ────────────────────────────────────────────────
 
+@app.post("/api/payment/recommend")
+async def recommend_payment():
+    """
+    Step 1: Agent analyzes instruments and returns a recommendation.
+    No payment is executed yet.
+    """
+    instruments = USER["instruments"]
+
+    try:
+        offers = await pinelabs.discover_offers(PRODUCT["price"] * 100)
+    except Exception:
+        offers = {}
+
+    try:
+        recommendation = agent.recommend_instrument(PRODUCT, instruments, offers)
+    except Exception:
+        best = max(instruments, key=lambda i: i["success_rate"])
+        recommendation = {
+            "recommended_id": best["id"],
+            "recommended_name": best["name"],
+            "reasoning": f"Selected {best['name']} based on highest success rate ({best['success_rate']*100:.0f}%).",
+            "savings_amount": best.get("offer", {}).get("amount", 0),
+            "ranked_instruments": [
+                {"id": i["id"], "score": i["success_rate"], "rationale": f"{i['name']} — {i['success_rate']*100:.0f}% success rate"}
+                for i in sorted(instruments, key=lambda x: x["success_rate"], reverse=True)
+            ],
+        }
+
+    return {"recommendation": recommendation, "product": PRODUCT}
+
+
 @app.post("/api/payment/execute")
 async def execute_payment(req: PaymentExecuteRequest):
     """
-    Full payment flow in one call:
-    1. Agent recommends instrument (or uses provided one)
-    2. Create real Pine Labs order
-    3. Attempt payment (with possible simulated failure)
-    4. If failed: agent diagnoses + auto-retries with fallback
-    5. Return complete flow result with all reasoning traces
+    Step 2: Execute payment with chosen instrument.
+    Handles failure detection, diagnosis, and auto-recovery.
     """
     start_time = time.time()
     instruments = USER["instruments"]
+
+    chosen_id = req.instrument_id or instruments[0]["id"]
+    chosen_instrument = next((i for i in instruments if i["id"] == chosen_id), instruments[0])
+
     flow_result = {
-        "recommendation": None,
         "initial_attempt": None,
         "recovery": None,
         "order_id": None,
@@ -87,42 +117,7 @@ async def execute_payment(req: PaymentExecuteRequest):
         "total_time_ms": 0,
     }
 
-    # Step 1: Agent recommends instrument
-    try:
-        offers = await pinelabs.discover_offers(PRODUCT["price"] * 100)
-    except Exception:
-        offers = {}
-
-    try:
-        recommendation = agent.recommend_instrument(PRODUCT, instruments, offers)
-    except Exception as e:
-        # Fallback: pick the instrument with highest success rate
-        best = max(instruments, key=lambda i: i["success_rate"])
-        recommendation = {
-            "recommended_id": best["id"],
-            "recommended_name": best["name"],
-            "reasoning": f"Selected {best['name']} based on highest success rate ({best['success_rate']*100:.0f}%).",
-            "savings_amount": best.get("offer", {}).get("amount", 0),
-            "ranked_instruments": [],
-        }
-
-    flow_result["recommendation"] = recommendation
-
-    # Use provided instrument or agent's recommendation
-    chosen_id = req.instrument_id or recommendation["recommended_id"]
-    chosen_instrument = next((i for i in instruments if i["id"] == chosen_id), instruments[0])
-
-    # Store recommendation trace
-    rec_trace_id = str(uuid.uuid4())
-    rec_trace = {
-        "id": rec_trace_id,
-        "transaction_id": "",  # will update
-        "trace_type": "RECOMMENDATION",
-        "reasoning": recommendation["reasoning"],
-        "instrument_selected": chosen_id,
-    }
-
-    # Step 2: Create real Pine Labs order
+    # Step 1: Create real Pine Labs order
     merchant_ref = f"PAYSENSE-{uuid.uuid4().hex[:12].upper()}"
     try:
         order = await pinelabs.create_order(
@@ -134,16 +129,14 @@ async def execute_payment(req: PaymentExecuteRequest):
         )
         order_id = order.get("order_id", order.get("id", merchant_ref))
     except Exception:
-        # If Pine Labs is unreachable, use our reference as the order ID
         order_id = merchant_ref
 
     flow_result["order_id"] = order_id
 
-    # Step 3: Attempt payment
+    # Step 2: Attempt payment
     tx_id = str(uuid.uuid4())
     result = payment_simulator.execute_payment(order_id, chosen_instrument)
 
-    # Record transaction
     tx_record = {
         "id": tx_id,
         "order_id": order_id,
@@ -156,15 +149,20 @@ async def execute_payment(req: PaymentExecuteRequest):
     }
     await db.insert_transaction(tx_record)
 
-    # Update and store recommendation trace
-    rec_trace["transaction_id"] = tx_id
-    await db.insert_trace(rec_trace)
+    # Store recommendation trace (for the instrument the user chose)
+    rec_trace_id = str(uuid.uuid4())
+    await db.insert_trace({
+        "id": rec_trace_id,
+        "transaction_id": tx_id,
+        "trace_type": "RECOMMENDATION",
+        "reasoning": f"User selected {chosen_instrument['name']} for payment of ₹{PRODUCT['price']}",
+        "instrument_selected": chosen_id,
+    })
     flow_result["traces"].append({
         "id": rec_trace_id,
         "type": "RECOMMENDATION",
-        "reasoning": recommendation["reasoning"],
+        "reasoning": f"User selected {chosen_instrument['name']} for payment of ₹{PRODUCT['price']}",
         "instrument": chosen_instrument["name"],
-        "savings": recommendation.get("savings_amount", 0),
     })
 
     flow_result["initial_attempt"] = {
@@ -176,7 +174,7 @@ async def execute_payment(req: PaymentExecuteRequest):
         "pine_labs_response": result,
     }
 
-    # Step 4: If failed, agent diagnoses and recovers
+    # Step 3: If failed, agent diagnoses and recovers
     if not result["success"]:
         failure_payload = result
 
@@ -185,7 +183,6 @@ async def execute_payment(req: PaymentExecuteRequest):
                 failure_payload, instruments, chosen_id
             )
         except Exception:
-            # Fallback: pick next best instrument
             remaining = [i for i in instruments if i["id"] != chosen_id]
             fallback = max(remaining, key=lambda i: i["success_rate"]) if remaining else instruments[0]
             error_code = result["data"]["payments"][0]["error_detail"]["code"]
@@ -200,15 +197,13 @@ async def execute_payment(req: PaymentExecuteRequest):
 
         # Store diagnosis trace
         diag_trace_id = str(uuid.uuid4())
-        diag_trace = {
+        await db.insert_trace({
             "id": diag_trace_id,
             "transaction_id": tx_id,
             "trace_type": "DIAGNOSIS",
             "reasoning": diagnosis["reasoning"],
             "instrument_selected": diagnosis["fallback_instrument_id"],
-        }
-        await db.insert_trace(diag_trace)
-
+        })
         flow_result["traces"].append({
             "id": diag_trace_id,
             "type": "DIAGNOSIS",
@@ -218,7 +213,7 @@ async def execute_payment(req: PaymentExecuteRequest):
             "confidence": diagnosis.get("confidence", 0.9),
         })
 
-        # Step 5: Retry with fallback (max 2 retries)
+        # Step 4: Retry with fallback
         fallback_id = diagnosis["fallback_instrument_id"]
         fallback_instrument = next((i for i in instruments if i["id"] == fallback_id), instruments[0])
 
@@ -237,23 +232,21 @@ async def execute_payment(req: PaymentExecuteRequest):
         }
         await db.insert_transaction(retry_record)
 
-        # Store recovery trace
         recovery_trace_id = str(uuid.uuid4())
-        recovery_trace = {
+        recovery_reasoning = f"Successfully recovered payment using {fallback_instrument['name']}. Original failure: {diagnosis['diagnosis']}"
+        await db.insert_trace({
             "id": recovery_trace_id,
             "transaction_id": retry_tx_id,
             "trace_type": "RECOVERY",
-            "reasoning": f"Successfully recovered payment using {fallback_instrument['name']}. Original failure: {diagnosis['diagnosis']}",
+            "reasoning": recovery_reasoning,
             "instrument_selected": fallback_id,
-        }
-        await db.insert_trace(recovery_trace)
-
+        })
         flow_result["traces"].append({
             "id": recovery_trace_id,
             "type": "RECOVERY",
             "instrument": fallback_instrument["name"],
             "status": retry_record["status"],
-            "reasoning": recovery_trace["reasoning"],
+            "reasoning": recovery_reasoning,
         })
 
         flow_result["recovery"] = {
