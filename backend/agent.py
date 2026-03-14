@@ -1,9 +1,9 @@
 import json
 import anthropic
-from config import ANTHROPIC_API_KEY
+from config import AWS_REGION
 
-client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-MODEL = "claude-sonnet-4-20250514"
+client = anthropic.AnthropicBedrock(aws_region=AWS_REGION)
+MODEL = "us.anthropic.claude-sonnet-4-20250514-v1:0"
 
 
 def recommend_instrument(product: dict, instruments: list, offers: dict = None) -> dict:

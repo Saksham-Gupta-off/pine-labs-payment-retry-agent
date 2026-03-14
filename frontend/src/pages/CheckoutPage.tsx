@@ -11,7 +11,7 @@ import {
   RefreshCw,
   Headphones,
 } from "lucide-react";
-import { executePayment, getProduct, getUser } from "../api";
+import { recommendPayment, executePayment } from "../api";
 
 type FlowState =
   | "product"
@@ -33,83 +33,79 @@ interface Instrument {
   offer?: { type: string; amount: number; desc: string };
 }
 
+const INSTRUMENTS: Instrument[] = [
+  {
+    id: "upi_1", type: "UPI", name: "PhonePe UPI", handle: "arjun@okaxis",
+    success_rate: 0.72, recent_failures: 3, icon: "phonepe",
+  },
+  {
+    id: "card_1", type: "Credit Card", name: "Axis Flipkart Card", last4: "4521",
+    success_rate: 0.95, recent_failures: 0, icon: "axis",
+    offer: { type: "cashback", amount: 280, desc: "\u20b9280 cashback on purchases above \u20b93000" },
+  },
+  {
+    id: "card_2", type: "Debit Card", name: "HDFC Debit Card", last4: "8834",
+    success_rate: 0.88, recent_failures: 1, icon: "hdfc",
+  },
+];
+
 const ICON_COLORS: Record<string, string> = {
   phonepe: "bg-purple-600",
   axis: "bg-pink-600",
   hdfc: "bg-blue-600",
 };
 
+const product = {
+  name: "boAt Airdopes 141",
+  price: 5799,
+  description: "Wireless earbuds with 42H playtime, ENx\u2122 noise cancellation, and BEAST\u2122 mode for gaming.",
+};
+
 export default function CheckoutPage() {
   const [state, setState] = useState<FlowState>("product");
-  const [result, setResult] = useState<any>(null);
+  const [recommendation, setRecommendation] = useState<any>(null);
+  const [execResult, setExecResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const product = {
-    name: "boAt Airdopes 141",
-    price: 5799,
-    description:
-      "Wireless earbuds with 42H playtime, ENx\u2122 noise cancellation, and BEAST\u2122 mode for gaming.",
-  };
-
+  // Step 1: Get agent recommendation (no payment yet)
   const handlePay = async () => {
     setState("thinking");
     setError(null);
-
     try {
-      // Small delay to show thinking animation
-      await new Promise((r) => setTimeout(r, 1500));
-
-      const data = await executePayment();
-      setResult(data);
-
-      // Show recommendation
+      const data = await recommendPayment();
+      setRecommendation(data.recommendation);
       setState("recommendation");
     } catch (e: any) {
-      setError(e.message || "Something went wrong");
+      setError(e?.response?.data?.detail || e.message || "Failed to get recommendation");
       setState("product");
     }
   };
 
-  const handleApprove = async (instrumentId?: string) => {
+  // Step 2: Execute payment with chosen instrument
+  const handleExecute = async (instrumentId: string) => {
     setState("processing");
-
-    // Simulate processing delay
-    await new Promise((r) => setTimeout(r, 2000));
-
-    if (result?.initial_attempt?.status === "FAILED") {
-      setState("recovering");
-      await new Promise((r) => setTimeout(r, 3000));
-    }
-
-    setState("success");
-  };
-
-  const handlePayWithInstrument = async (instrumentId: string) => {
-    setState("thinking");
-    setError(null);
-
     try {
-      await new Promise((r) => setTimeout(r, 1500));
       const data = await executePayment(instrumentId);
-      setResult(data);
-      setState("processing");
-      await new Promise((r) => setTimeout(r, 2000));
+      setExecResult(data);
 
-      if (data?.initial_attempt?.status === "FAILED") {
+      if (data.initial_attempt?.status === "FAILED" && data.recovery) {
         setState("recovering");
-        await new Promise((r) => setTimeout(r, 3000));
+        // Show recovery animation for 3s then transition to success
+        setTimeout(() => setState("success"), 3000);
+      } else {
+        // Short delay then success
+        setTimeout(() => setState("success"), 1500);
       }
-
-      setState("success");
     } catch (e: any) {
-      setError(e.message || "Something went wrong");
+      setError(e?.response?.data?.detail || e.message || "Payment failed");
       setState("product");
     }
   };
 
   const reset = () => {
     setState("product");
-    setResult(null);
+    setRecommendation(null);
+    setExecResult(null);
     setError(null);
   };
 
@@ -131,15 +127,11 @@ export default function CheckoutPage() {
               </div>
             </div>
             <h2 className="text-2xl font-bold text-center">{product.name}</h2>
-            <p className="text-white/50 text-center mt-2 text-sm">
-              {product.description}
-            </p>
+            <p className="text-white/50 text-center mt-2 text-sm">{product.description}</p>
             <div className="text-3xl font-bold text-center mt-4 text-emerald-400">
               ₹{product.price.toLocaleString()}
             </div>
-            {error && (
-              <p className="text-red-400 text-sm text-center mt-2">{error}</p>
-            )}
+            {error && <p className="text-red-400 text-sm text-center mt-2">{error}</p>}
             <button
               onClick={handlePay}
               className="w-full mt-6 bg-emerald-500 hover:bg-emerald-600 text-white font-semibold py-3 px-6 rounded-xl flex items-center justify-center gap-2 transition-colors"
@@ -178,11 +170,7 @@ export default function CheckoutPage() {
                   key={i}
                   className="w-2 h-2 bg-emerald-400 rounded-full"
                   animate={{ opacity: [0.3, 1, 0.3] }}
-                  transition={{
-                    repeat: Infinity,
-                    duration: 1,
-                    delay: i * 0.2,
-                  }}
+                  transition={{ repeat: Infinity, duration: 1, delay: i * 0.2 }}
                 />
               ))}
             </div>
@@ -190,7 +178,7 @@ export default function CheckoutPage() {
         )}
 
         {/* ── Recommendation ── */}
-        {state === "recommendation" && result && (
+        {state === "recommendation" && recommendation && (
           <motion.div
             key="recommendation"
             initial={{ opacity: 0, y: 20 }}
@@ -209,11 +197,11 @@ export default function CheckoutPage() {
                     PaySense Recommendation
                   </p>
                   <p className="text-white/80 text-sm leading-relaxed">
-                    {result.recommendation?.reasoning}
+                    {recommendation.reasoning}
                   </p>
-                  {(result.recommendation?.savings_amount ?? 0) > 0 && (
+                  {(recommendation.savings_amount ?? 0) > 0 && (
                     <div className="mt-3 inline-flex items-center gap-1 bg-emerald-500/20 text-emerald-400 px-3 py-1 rounded-full text-sm font-medium">
-                      You save ₹{result.recommendation.savings_amount}
+                      You save ₹{recommendation.savings_amount}
                     </div>
                   )}
                 </div>
@@ -222,70 +210,62 @@ export default function CheckoutPage() {
 
             {/* Instrument cards */}
             <div className="space-y-2">
-              {result.recommendation?.ranked_instruments?.map(
-                (ranked: any, idx: number) => {
-                  const inst = findInstrument(ranked.id);
-                  if (!inst) return null;
-                  const isRecommended =
-                    ranked.id === result.recommendation.recommended_id;
-                  return (
-                    <motion.button
-                      key={ranked.id}
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: idx * 0.1 }}
-                      onClick={() => handlePayWithInstrument(ranked.id)}
-                      className={`w-full glass p-4 flex items-center gap-4 text-left transition-all hover:bg-white/10 ${
-                        isRecommended
-                          ? "ring-2 ring-emerald-400/50 bg-emerald-500/5"
-                          : ""
+              {(recommendation.ranked_instruments || []).map((ranked: any, idx: number) => {
+                const inst = INSTRUMENTS.find((i) => i.id === ranked.id);
+                if (!inst) return null;
+                const isRecommended = ranked.id === recommendation.recommended_id;
+                return (
+                  <motion.button
+                    key={ranked.id}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: idx * 0.1 }}
+                    onClick={() => handleExecute(ranked.id)}
+                    className={`w-full glass p-4 flex items-center gap-4 text-left transition-all hover:bg-white/10 ${
+                      isRecommended ? "ring-2 ring-emerald-400/50 bg-emerald-500/5" : ""
+                    }`}
+                  >
+                    <div
+                      className={`w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold text-sm ${
+                        ICON_COLORS[inst.icon] || "bg-gray-600"
                       }`}
                     >
-                      <div
-                        className={`w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold text-sm ${
-                          ICON_COLORS[inst.icon] || "bg-gray-600"
-                        }`}
-                      >
-                        {inst.name.slice(0, 2).toUpperCase()}
+                      {inst.name.slice(0, 2).toUpperCase()}
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{inst.name}</span>
+                        {isRecommended && (
+                          <span className="text-xs bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full">
+                            Recommended
+                          </span>
+                        )}
                       </div>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium">{inst.name}</span>
-                          {isRecommended && (
-                            <span className="text-xs bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full">
-                              Recommended
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-xs text-white/40 mt-0.5">
-                          {inst.type}
-                          {inst.last4 ? ` •••• ${inst.last4}` : ""}
-                          {inst.handle ? ` · ${inst.handle}` : ""} ·{" "}
-                          {(inst.success_rate * 100).toFixed(0)}% success rate
-                        </p>
-                      </div>
-                      {inst.offer && (
-                        <span className="text-xs text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded">
-                          ₹{inst.offer.amount} off
-                        </span>
-                      )}
-                      <ArrowRight className="w-4 h-4 text-white/30" />
-                    </motion.button>
-                  );
-                }
-              )}
+                      <p className="text-xs text-white/40 mt-0.5">
+                        {inst.type}
+                        {inst.last4 ? ` •••• ${inst.last4}` : ""}
+                        {inst.handle ? ` · ${inst.handle}` : ""} ·{" "}
+                        {(inst.success_rate * 100).toFixed(0)}% success rate
+                      </p>
+                    </div>
+                    {inst.offer && (
+                      <span className="text-xs text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded">
+                        ₹{inst.offer.amount} off
+                      </span>
+                    )}
+                    <ArrowRight className="w-4 h-4 text-white/30" />
+                  </motion.button>
+                );
+              })}
             </div>
 
             {/* Approve recommended */}
             <button
-              onClick={() =>
-                handlePayWithInstrument(result.recommendation.recommended_id)
-              }
+              onClick={() => handleExecute(recommendation.recommended_id)}
               className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-semibold py-3 px-6 rounded-xl flex items-center justify-center gap-2 transition-colors"
             >
               <CreditCard className="w-5 h-5" />
-              Pay with{" "}
-              {result.recommendation?.recommended_name || "recommended instrument"}
+              Pay with {recommendation.recommended_name || "recommended instrument"}
             </button>
           </motion.div>
         )}
@@ -305,17 +285,13 @@ export default function CheckoutPage() {
             >
               <Loader2 className="w-12 h-12 text-blue-400 mx-auto" />
             </motion.div>
-            <h3 className="text-xl font-semibold mt-6">
-              Processing payment...
-            </h3>
-            <p className="text-white/50 mt-2 text-sm">
-              Connecting to Pine Labs payment gateway
-            </p>
+            <h3 className="text-xl font-semibold mt-6">Processing payment...</h3>
+            <p className="text-white/50 mt-2 text-sm">Connecting to Pine Labs payment gateway</p>
           </motion.div>
         )}
 
         {/* ── Recovering ── */}
-        {state === "recovering" && result && (
+        {state === "recovering" && execResult && (
           <motion.div
             key="recovering"
             initial={{ opacity: 0, scale: 0.95 }}
@@ -335,7 +311,7 @@ export default function CheckoutPage() {
                 Recovering your payment...
               </h3>
               <p className="text-white/60 mt-3 text-sm">
-                {result.recovery?.diagnosis ||
+                {execResult.recovery?.diagnosis ||
                   "The initial payment didn't go through. Don't worry — PaySense is switching to a better option."}
               </p>
               <div className="mt-4 glass p-4 text-left">
@@ -343,7 +319,7 @@ export default function CheckoutPage() {
                   Agent Reasoning
                 </p>
                 <p className="text-sm text-white/70">
-                  {result.recovery?.reasoning ||
+                  {execResult.recovery?.reasoning ||
                     "Analyzing failure and selecting optimal fallback..."}
                 </p>
               </div>
@@ -353,11 +329,7 @@ export default function CheckoutPage() {
                     key={i}
                     className="w-2 h-2 bg-amber-400 rounded-full"
                     animate={{ opacity: [0.3, 1, 0.3] }}
-                    transition={{
-                      repeat: Infinity,
-                      duration: 1,
-                      delay: i * 0.15,
-                    }}
+                    transition={{ repeat: Infinity, duration: 1, delay: i * 0.15 }}
                   />
                 ))}
               </div>
@@ -366,7 +338,7 @@ export default function CheckoutPage() {
         )}
 
         {/* ── Success ── */}
-        {state === "success" && result && (
+        {state === "success" && execResult && (
           <motion.div
             key="success"
             initial={{ opacity: 0, scale: 0.9 }}
@@ -378,60 +350,50 @@ export default function CheckoutPage() {
               <motion.div
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}
-                transition={{
-                  type: "spring",
-                  stiffness: 200,
-                  delay: 0.2,
-                }}
+                transition={{ type: "spring", stiffness: 200, delay: 0.2 }}
               >
                 <CheckCircle2 className="w-16 h-16 text-emerald-400 mx-auto" />
               </motion.div>
               <h3 className="text-2xl font-bold mt-4">Payment Successful!</h3>
-              <p className="text-white/50 mt-1">
-                Order ID: {result.order_id}
-              </p>
+              <p className="text-white/50 mt-1">Order ID: {execResult.order_id}</p>
             </div>
 
             <div className="mt-6 space-y-3">
               <div className="flex justify-between text-sm">
                 <span className="text-white/50">Amount</span>
-                <span className="font-medium">
-                  ₹{(5799).toLocaleString()}
-                </span>
+                <span className="font-medium">₹{product.price.toLocaleString()}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-white/50">Paid with</span>
                 <span className="font-medium">
-                  {result.recovery
-                    ? result.recovery.instrument_name
-                    : result.initial_attempt?.instrument_name}
+                  {execResult.recovery
+                    ? execResult.recovery.instrument_name
+                    : execResult.initial_attempt?.instrument_name}
                 </span>
               </div>
-              {result.recovery && (
+              {execResult.recovery && (
                 <div className="flex justify-between text-sm">
                   <span className="text-white/50">Recovery</span>
                   <span className="font-medium text-amber-400">
-                    Auto-recovered from {result.initial_attempt?.instrument_name}
+                    Auto-recovered from {execResult.initial_attempt?.instrument_name}
                   </span>
                 </div>
               )}
-              {(result.recommendation?.savings_amount ?? 0) > 0 && (
+              {(recommendation?.savings_amount ?? 0) > 0 && (
                 <div className="flex justify-between text-sm">
                   <span className="text-white/50">Savings</span>
                   <span className="font-medium text-emerald-400">
-                    ₹{result.recommendation.savings_amount}
+                    ₹{recommendation.savings_amount}
                   </span>
                 </div>
               )}
               <div className="flex justify-between text-sm">
                 <span className="text-white/50">Time</span>
-                <span className="font-medium">
-                  {(result.total_time_ms / 1000).toFixed(1)}s
-                </span>
+                <span className="font-medium">{(execResult.total_time_ms / 1000).toFixed(1)}s</span>
               </div>
             </div>
 
-            {result.recovery && (
+            {execResult.recovery && (
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -445,7 +407,7 @@ export default function CheckoutPage() {
                       PaySense recovered this payment
                     </p>
                     <p className="text-xs text-white/50 mt-1">
-                      {result.recovery.diagnosis}
+                      {execResult.recovery.diagnosis}
                     </p>
                   </div>
                 </div>
@@ -463,43 +425,4 @@ export default function CheckoutPage() {
       </AnimatePresence>
     </div>
   );
-}
-
-// Helper to find instrument details from hardcoded data
-function findInstrument(id: string): Instrument | null {
-  const instruments: Instrument[] = [
-    {
-      id: "upi_1",
-      type: "UPI",
-      name: "PhonePe UPI",
-      handle: "arjun@okaxis",
-      success_rate: 0.72,
-      recent_failures: 3,
-      icon: "phonepe",
-    },
-    {
-      id: "card_1",
-      type: "Credit Card",
-      name: "Axis Flipkart Card",
-      last4: "4521",
-      success_rate: 0.95,
-      recent_failures: 0,
-      icon: "axis",
-      offer: {
-        type: "cashback",
-        amount: 280,
-        desc: "\u20b9280 cashback on purchases above \u20b93000",
-      },
-    },
-    {
-      id: "card_2",
-      type: "Debit Card",
-      name: "HDFC Debit Card",
-      last4: "8834",
-      success_rate: 0.88,
-      recent_failures: 1,
-      icon: "hdfc",
-    },
-  ];
-  return instruments.find((i) => i.id === id) || null;
 }

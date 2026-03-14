@@ -7,7 +7,10 @@ const api = axios.create({
 export const getUser = () => api.get("/api/user").then((r) => r.data);
 export const getProduct = () => api.get("/api/product").then((r) => r.data);
 
-export const executePayment = (instrumentId?: string) =>
+export const recommendPayment = () =>
+  api.post("/api/payment/recommend").then((r) => r.data);
+
+export const executePayment = (instrumentId: string) =>
   api
     .post("/api/payment/execute", { instrument_id: instrumentId })
     .then((r) => r.data);
