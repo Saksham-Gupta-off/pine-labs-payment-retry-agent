@@ -286,10 +286,14 @@ async def get_dashboard():
     successes = len([t for t in txns if t["status"] in ("SUCCESS", "RECOVERED")])
     failures_original = len([t for t in txns if t["retry_of"] is None and t["status"] == "FAILED"])
 
-    # Money saved: count cashback from successful txns using instruments with offers
+    # Money saved: only count offers on the final instrument that completed the payment.
+    # If a recovery switched to a different instrument, don't count the original's offer.
+    # Group by order_id — only the last successful txn per order counts.
     money_saved = 0
+    seen_orders = set()
     for t in txns:
-        if t["status"] in ("SUCCESS", "RECOVERED"):
+        if t["status"] in ("SUCCESS", "RECOVERED") and t["order_id"] not in seen_orders:
+            seen_orders.add(t["order_id"])
             inst = next((i for i in USER["instruments"] if i["id"] == t["instrument_id"]), None)
             if inst and "offer" in inst:
                 money_saved += inst["offer"]["amount"]
